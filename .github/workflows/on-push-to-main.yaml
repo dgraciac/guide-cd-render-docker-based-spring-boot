@@ -14,6 +14,10 @@ jobs:
       IMAGE_LATEST_URL: ghcr.io/dgraciac/guide-cd-render-docker-based-spring-boot:latest
       IMAGE_COMMIT_SHA_URL: ghcr.io/dgraciac/guide-cd-render-docker-based-spring-boot:${{ github.sha }}
 
+    environment:
+      name: production
+      url: https://guide-cd-render-docker-based-spring-boot.onrender.com
+
     permissions:
       contents: read
       packages: write
@@ -52,3 +56,12 @@ jobs:
 
       - name: Push image with "latest" version
         run: docker push ${{ env.IMAGE_LATEST_URL }}
+
+      - name: Trigger deploy in Render
+        run: |
+          status_code="$(curl --silent --output /dev/null --get -w "%{http_code}" --data-urlencode "imgURL=${{ env.IMAGE_COMMIT_SHA_URL }}" ${{ secrets.RENDER_DEPLOY_WEBHOOK }})"
+          echo $status_code
+          expected_status_code="200"
+          if [ $status_code != $expected_status_code ]; then
+          exit 1
+          fi
