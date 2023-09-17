@@ -1,0 +1,54 @@
+name: On push to main
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy_to_production:
+    runs-on: ubuntu-latest
+
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_LATEST_URL: ghcr.io/dgraciac/guide-cd-render-docker-based-spring-boot:latest
+      IMAGE_COMMIT_SHA_URL: ghcr.io/dgraciac/guide-cd-render-docker-based-spring-boot:${{ github.sha }}
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: 17
+
+      - name: Gradle build
+        run: ./gradlew build -x check
+
+      - name: Build Docker images
+        run: |
+          docker build \
+          --build-arg JAR_FILE=build/libs/guide-cd-render-docker-based-spring-boot-0.0.1-SNAPSHOT.jar \
+          -t ${{ env.IMAGE_LATEST_URL }} \
+          -t ${{ env.IMAGE_COMMIT_SHA_URL }} \
+          --platform=linux/amd64 \
+          .
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push image with "commit sha" version
+        run: docker push ${{ env.IMAGE_COMMIT_SHA_URL }}
+
+      - name: Push image with "latest" version
+        run: docker push ${{ env.IMAGE_LATEST_URL }}
